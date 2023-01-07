@@ -1,68 +1,81 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
+using static Program;
 
 class Program
 {
-
-    public delegate int tr1(Semaphore sem);
-    public delegate int tr2(Semaphore sem);
-    public static void slowProcess()
+    struct threadArgs
     {
-        for (int i = 0; i < 10; i++)
+        public Semaphore sem;
+        public CancellationToken cTok;
+    }
+
+    public delegate void trSlow(Object objArgs);
+    public delegate void trFast(Object objArgs);
+    public void slowProcess(Object objArgs)
+    {
+        var args = (threadArgs)objArgs;
+
+        for (int i = 0; i < 100; i++)
         {
             Program.j++;
-            Thread.Sleep(1000);
+            Thread.Sleep(100);
+            if (args.cTok.IsCancellationRequested)
+                return;
         }
-        Program.static_sem.Release();
+        args.sem.Release();
 //        return j;
     }
 
-    private static void fastProcess()
+    public void fastProcess(Object objArgs)
     {
-        //        int k = 9;
-        for (int i = 0; i < 5; i++)
+        var args = (threadArgs)objArgs;
+        for (int i = 0; i < 50; i++)
         {
             Program.k++;
-            Thread.Sleep(1000);
+            Thread.Sleep(100);
+            if (args.cTok.IsCancellationRequested)
+                return;
         }
-        Program.static_sem.Release();
+        args.sem.Release();
 //        return k;
     }
 
     static void Main()
     {
         var p = new Program();
-        Program.static_sem = new Semaphore(0, 2);
+        var cts = new CancellationTokenSource();
 
-//        tr1 del_tr1 = new tr1(p.slowProcess);
-//        tr2 del_tr2 = new tr2(p.fastProcess);
+        threadArgs trArgs = new threadArgs();
+        trArgs.sem = new Semaphore(0, 2);
+        trArgs.cTok = cts.Token;
 
-//        del_tr1(sem);
-//        del_tr2(sem);
+        var del_trSlow = new trSlow(p.slowProcess);
+        var del_trFast = new trFast(p.fastProcess);
 
-        // TimeSpan waitTime = TimeSpan.Zero;
-        var trFast = new Thread(new ThreadStart(Program.fastProcess));
-        var trSlow = new Thread(new ThreadStart(Program.slowProcess));
-        trSlow.Start();
-        trFast.Start();
+        var trFast = new Thread(new ParameterizedThreadStart(del_trFast));
+        var trSlow = new Thread(new ParameterizedThreadStart(del_trSlow));
+        trSlow.Start(trArgs);
+        trFast.Start(trArgs);
 
-        static_sem.WaitOne();
+        trArgs.sem.WaitOne();
 
         if (trFast.IsAlive)
         {
             Console.WriteLine("fast counter: " + Program.k.ToString() + " slow counter: " + Program.j.ToString());
-            trFast.Abort();
+            cts.Cancel();
         }
         else
         {
             Console.WriteLine("fast counter: " + Program.k.ToString() + " slow counter: " + Program.j.ToString());
-            trSlow.Abort();
+            cts.Cancel();
         }
 
+        cts.Dispose();
         Environment.Exit(0);
     }
 
     static int j = 0;
     static int k = 0;
-    static Semaphore static_sem;
+//    static Semaphore static_sem;
 }
