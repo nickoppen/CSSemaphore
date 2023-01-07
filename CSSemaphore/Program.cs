@@ -24,7 +24,6 @@ class Program
                 return;
         }
         args.sem.Release();
-//        return j;
     }
 
     public void fastProcess(Object objArgs)
@@ -38,7 +37,6 @@ class Program
                 return;
         }
         args.sem.Release();
-//        return k;
     }
 
     static void Main()
@@ -46,9 +44,11 @@ class Program
         var p = new Program();
         var cts = new CancellationTokenSource();
 
-        threadArgs trArgs = new threadArgs();
-        trArgs.sem = new Semaphore(0, 2);
-        trArgs.cTok = cts.Token;
+        var trArgs = new threadArgs
+        {
+            sem = new Semaphore(0, 2),
+            cTok = cts.Token
+        };
 
         var del_trSlow = new trSlow(p.slowProcess);
         var del_trFast = new trFast(p.fastProcess);
